@@ -3,9 +3,13 @@ mod command;
 use std::time::Duration;
 
 use clap::Parser;
-use command::{home::HomeParameters, StandaGetSetCommand, r#move::MOVEParameters};
+use command::{home::HomeParameters, StandaGetSetCommand};
 
-use crate::command::{home::{HOME, ZERO}, r#move::MOVE, StandaCommand};
+use crate::command::{
+    home::{HomeFlags, HOME},
+    state::StateParams,
+    StandaCommand,
+};
 
 // #[repr(C, packed)]
 // #[derive(Deserialize, Debug)]
@@ -74,7 +78,6 @@ use crate::command::{home::{HOME, ZERO}, r#move::MOVE, StandaCommand};
 //         "gmov"
 //     }
 // }
-
 
 // #[repr(C, packed)]
 // #[derive(Serialize, Debug)]
@@ -169,24 +172,29 @@ fn main() {
     home_params.slow_home = 20;
     home_params.home_delta = 123;
     home_params.u_home_delta = 140;
-    home_params.home_flags = 250;
+    home_params.home_flags = HomeFlags::STOP_FIRST_REV | HomeFlags::STOP_FIRST_SYN;
+
 
     home_params
         .set(&mut port)
         .expect("failed to set home parameters.");
 
-    // HOME{}.run(&mut port, "home").expect("failed to send home command.");
+    HOME{}.run(&mut port, "home").expect("failed to send home command.");
+
+    let state = StateParams::get(&mut port).expect("failed to fetch state parameters.");
+
+    println!("{:#?}", state);
+
 
     // ZERO{}.run(&mut port, "zero").expect("failed to send zero command.");
 
+    // let move_params = MOVEParameters::get(&mut port)
+    //     .expect("failed to fetch move parameters.");
 
-    let move_params = MOVEParameters::get(&mut port)
-        .expect("failed to fetch move parameters.");
+    // println!("{:#?}", move_params);
 
-    println!("{:#?}", move_params);
-
-    MOVE{
-        position: 60,
-        u_position: 0,
-    }.run(&mut port, "move").expect("failed to send move command.");
+    // MOVE{
+    //     position: 60,
+    //     u_position: 0,
+    // }.run(&mut port, "move").expect("failed to send move command.");
 }

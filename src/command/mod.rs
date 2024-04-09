@@ -1,16 +1,16 @@
 pub mod home;
 pub mod r#move;
+pub mod state;
 
 use std::{
     io::{self, Error, ErrorKind, Read, Write},
     mem::size_of,
 };
 
-use bincode::{deserialize, serialize};
+use bincode::deserialize;
 use serde::{Deserialize, Serialize};
 use serialport::{ClearBuffer, SerialPort, TTYPort};
 
-use crate::command::home::HomeParameters;
 
 fn crc16(pbuf: &[u8]) -> u16 {
     let mut crc: u16 = 0xffff;
@@ -35,12 +35,6 @@ struct Response<T> {
     #[serde(flatten)]
     data: T,
     crc: u16,
-}
-
-#[repr(C, packed)]
-#[derive(Serialize, Debug)]
-struct Request {
-    cmd: u32,
 }
 
 pub trait StandaCommand<'a>: Serialize + Sized {
@@ -109,7 +103,7 @@ where
         let (data, serial_buf) = serial_buf.split_at(size_of::<Self>());
         // Reserved bytes
         let (_, serial_buf) = serial_buf.split_at(Self::RESERVED_BYTES.len());
-        let (crc, _) = serial_buf.split_at(2);
+        let (_crc, _) = serial_buf.split_at(2);
         // TODO: check crc
         
         if cmd != Self::GET_CMD_NAME.as_bytes() {

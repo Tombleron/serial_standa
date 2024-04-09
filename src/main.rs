@@ -169,12 +169,22 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    let port = serialport::new(args.device, 115_200)
+    let mut port = serialport::new(args.device, 115_200)
         .timeout(Duration::from_secs(1))
         .open_native()
-        .expect("Failed to open port");
+        .expect("failed to open port.");
 
-    let home_params = HomeParameters::get(port);
+    let mut home_params = HomeParameters::get(&mut port).expect("failed to fetch home parameters.");
+
+    println!("{:#?}", home_params);
+
+    home_params.fast_home = 100;
+
+    home_params
+        .set(&mut port)
+        .expect("failed to set home parameters.");
+
+    let home_params = HomeParameters::get(&mut port).expect("failed to fetch home parameters.");
 
     println!("{:#?}", home_params);
 }

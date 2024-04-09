@@ -40,35 +40,32 @@ struct Request {
     cmd: u32,
 }
 
-pub trait StandaCommand<'a>: Serialize {
+pub trait StandaCommand<'a>: Serialize + Sized {
     const HAS_CRC: bool = true;
     const RESERVED_BYTES: Option<&'a [u8]> = None;
-    const CMD_NAME: &'static str;
 
-    fn calc_crc(&self) -> u16 {
-        let bytes = bincode::serialize(self).unwrap();
-        crc16(&bytes)
-    }
+    const SIZE: usize = size_of::<Self>() + size_of::<[u8; 4]>() + size_of::<u32>();
 
-    fn as_bytes(&self) -> Vec<u8> {
-        let command = Self::CMD_NAME.as_bytes();
-        let params = bincode::serialize(self).unwrap();
+    fn as_bytes(&self, cmd_name: &'static str) -> Vec<u8> {
+        let command = cmd_name.as_bytes();
 
-        let mut bytes = Vec::new();
+        let bytes = bincode::serialize(self).expect("failed to serialize struct.");
 
-        bytes.extend_from_slice(command);
-        bytes.extend_from_slice(&params);
+        let mut buffer = Vec::with_capacity(Self::SIZE);
+
+        buffer.extend_from_slice(command);
+        buffer.extend_from_slice(&bytes);
 
         if let Some(reserved) = Self::RESERVED_BYTES {
-            bytes.extend_from_slice(reserved);
+            buffer.extend_from_slice(reserved);
         }
 
         if Self::HAS_CRC {
-            let crc = self.calc_crc();
-            bytes.extend_from_slice(&[crc as u8, (crc >> 8) as u8]);
+            let crc = crc16(&bytes);
+            buffer.extend_from_slice(&[crc as u8, (crc >> 8) as u8]);
         }
 
-        bytes
+        buffer
     }
 }
 
@@ -81,7 +78,7 @@ where
 
     const SIZE: usize = size_of::<Self>() + size_of::<[u8; 4]>() + size_of::<u32>();
 
-    fn get(mut port: TTYPort) -> io::Result<Self>
+    fn get(port: &mut TTYPort) -> io::Result<Self>
     where
         Self: for<'de> Deserialize<'de>,
     {
@@ -101,5 +98,25 @@ where
         })?;
 
         Ok(response.data)
+    }
+
+    fn set(&self, port: &mut TTYPort) -> io::Result<()>
+    where
+        Self: StandaCommand<'a>,
+    {
+        let bytes = self.as_bytes(Self::SET_CMD_NAME);
+
+        port.write_all(&bytes)?;
+
+        let mut serial_buf: [u8; 4] = [0; 4];
+        port.read_exact(&mut serial_buf)?;
+
+        match serial_buf == Self::SET_CMD_NAME.as_bytes() {
+            true => Ok(()),
+            false => {
+                let err = std::str::from_utf8(&serial_buf).unwrap_or("unknown error");
+                Err(Error::new(ErrorKind::Other, err))
+            }
+        }
     }
 }

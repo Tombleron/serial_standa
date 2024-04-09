@@ -15,11 +15,28 @@ pub struct HomeParameters {
 }
 
 impl<'a> StandaCommand<'a> for HomeParameters {
-    const RESERVED_BYTES: Option<&'a [u8]> = Some(&[0; 9]);
+    const RESERVED_BYTES: &'a [u8] = &[0; 9];
 }
 
 impl<'a> StandaGetSetCommand<'a> for HomeParameters {
     const GET_CMD_NAME: &'static str = "ghom";
-
     const SET_CMD_NAME: &'static str = "shom";
+}
+
+#[repr(C, packed)]
+#[derive(Serialize, Deserialize, Debug)]
+pub struct HOME {}
+
+impl<'a> StandaCommand<'a> for HOME {
+    const HAS_CRC: bool = false;
+    const RESERVED_BYTES: &'a [u8] = &[0; 0];
+}
+
+#[repr(C, packed)]
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ZERO {}
+
+impl<'a> StandaCommand<'a> for ZERO {
+    const HAS_CRC: bool = false;
+    const RESERVED_BYTES: &'a [u8] = &[0; 0];
 }

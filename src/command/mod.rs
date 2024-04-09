@@ -1,6 +1,13 @@
 pub mod home;
 
+use std::{
+    io::{self, Error, ErrorKind, Read, Write},
+    mem::size_of,
+};
+
+use bincode::deserialize;
 use serde::{Deserialize, Serialize};
+use serialport::TTYPort;
 
 fn crc16(pbuf: &[u8]) -> u16 {
     let mut crc: u16 = 0xffff;
@@ -27,7 +34,11 @@ struct Response<T> {
     crc: u16,
 }
 
-
+#[repr(C, packed)]
+#[derive(Serialize, Debug)]
+struct Request {
+    cmd: u32,
+}
 
 pub trait StandaCommand<'a>: Serialize {
     const HAS_CRC: bool = true;
@@ -61,11 +72,34 @@ pub trait StandaCommand<'a>: Serialize {
     }
 }
 
-pub trait StandaGetSetCommand<'a>: StandaCommand<'a> {
+pub trait StandaGetSetCommand<'a>
+where
+    Self: Sized,
+{
+    const GET_CMD_NAME: &'static str;
+    const SET_CMD_NAME: &'static str;
 
-    
+    const SIZE: usize = size_of::<Self>() + size_of::<[u8; 4]>() + size_of::<u32>();
 
-    fn get() -> Self {
-        
+    fn get(mut port: TTYPort) -> io::Result<Self>
+    where
+        Self: for<'de> Deserialize<'de>,
+    {
+        let name = Self::GET_CMD_NAME.as_bytes();
+
+        port.write_all(name)?;
+
+        // FIXME: move to slice
+        let mut serial_buf = vec![0; Self::SIZE];
+        port.read_exact(serial_buf.as_mut_slice())?;
+
+        let response = deserialize::<Response<Self>>(&serial_buf).map_err(|_| {
+            Error::new(
+                ErrorKind::InvalidData,
+                "failed to parse response from serial port.",
+            )
+        })?;
+
+        Ok(response.data)
     }
 }
